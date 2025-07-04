@@ -1,0 +1,6 @@
+from app import create_app  # importa tu app Flask ya configurada
+
+app = create_app()          # crea una instancia de la app
+
+if __name__ == "__main__":  # si estás ejecutando este archivo directamente...
+    app.run(debug=True)     # ... inicia el servidor en http://127.0.0.1:5000
