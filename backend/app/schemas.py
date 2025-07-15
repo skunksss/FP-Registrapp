@@ -39,6 +39,7 @@ class DespachoSchema(ma.Schema):
 class LoginSchema(ma.Schema):
     rut = fields.Str(required=True, validate=validate.Length(min=8, max=12))
     password = fields.Str(required=True, validate=validate.Length(min=4))
+
     class Meta:
         fields = ("rut", "password")
 

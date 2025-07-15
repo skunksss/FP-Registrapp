@@ -1,8 +1,8 @@
-"""Agrega latitud y longitud a Despacho y Recepcion
+"""Primera migración - tablas de usuario, despacho, recepcion
 
-Revision ID: 3308aa3b4d97
+Revision ID: 727535696fef
 Revises: 
-Create Date: 2025-07-03 12:11:27.944315
+Create Date: 2025-07-09 12:49:46.770163
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '3308aa3b4d97'
+revision = '727535696fef'
 down_revision = None
 branch_labels = None
 depends_on = None
