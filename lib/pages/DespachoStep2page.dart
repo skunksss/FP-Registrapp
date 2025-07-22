@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:drappnew/services/auth_service.dart';
 import 'dart:convert';
+import 'package:drappnew/services/logger.dart';
 
 class DespachoStep2Page extends StatefulWidget {
   final String numeroGuia;
@@ -34,6 +35,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
 
     if (!cameraStatus.isGranted ||
         (!storageStatus.isGranted && !mediaStatus.isGranted)) {
+      AppLogger.warning("Permisos no concedidos para cámara o almacenamiento");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Permisos no concedidos')));
@@ -42,13 +44,14 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
 
     final picked = await picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 60, // Comprime directamente aquí
+      imageQuality: 60,
       maxWidth: 800,
       maxHeight: 800,
     );
 
     if (picked == null) return null;
 
+    AppLogger.info("Imagen seleccionada: ${picked.path}");
     return File(picked.path);
   }
 
@@ -71,12 +74,13 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
       final responseBody = await response.stream.bytesToString();
       if (response.statusCode == 201) {
         final json = jsonDecode(responseBody);
+        AppLogger.info("Despacho creado con ID: ${json['id']}");
         return json['id'];
       } else {
-        print('Error al crear despacho: $responseBody');
+        AppLogger.error("Error al crear despacho: $responseBody");
       }
     } catch (e) {
-      print('Excepción al crear despacho: $e');
+      AppLogger.error("Excepción al crear despacho: $e");
     }
     return null;
   }
@@ -96,15 +100,18 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
       final response = await request.send();
       final res = await response.stream.bytesToString();
       if (response.statusCode != 201) {
-        print('Error al subir foto $tipo: $res');
+        AppLogger.error("Error al subir foto $tipo: $res");
+      } else {
+        AppLogger.info("Foto $tipo subida exitosamente");
       }
     } catch (e) {
-      print('Excepción al subir foto $tipo: $e');
+      AppLogger.error("Excepción al subir foto $tipo: $e");
     }
   }
 
   void _guardarYDespachar() async {
     if (carnetImage == null || patenteImage == null || cargaImage == null) {
+      AppLogger.warning("Intento de guardar despacho sin todas las fotos");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Debes tomar las 3 fotos')));
@@ -113,6 +120,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
 
     final despachoId = await crearDespacho();
     if (despachoId == null) {
+      AppLogger.error("Error al crear despacho");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Error al crear despacho')));
@@ -135,6 +143,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
       const SnackBar(content: Text('Despacho guardado exitosamente')),
     );
 
+    AppLogger.info("Despacho guardado exitosamente con ID: $despachoId");
     Navigator.pop(context);
   }
 

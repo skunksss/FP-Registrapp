@@ -1,7 +1,9 @@
+// lib/pages/HistorialPage.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'DetalleMovimientoPage.dart'; // debes crear esta página luego
+import 'package:drappnew/services/logger.dart';
 
 class HistorialPage extends StatefulWidget {
   @override
@@ -12,10 +14,9 @@ class _HistorialPageState extends State<HistorialPage> {
   List movimientos = [];
   int currentPage = 1;
   int totalPages = 1;
-  String tipo =
-      'movimientos'; // Cambiado a 'movimientos' para mostrar ambos por defecto
+  String tipo = 'movimientos';
   String searchText = '';
-  String ordenamiento = 'Ordenar por'; // Texto inicial del filtro
+  String ordenamiento = 'Ordenar por';
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -36,6 +37,8 @@ class _HistorialPageState extends State<HistorialPage> {
     final token =
         'AQUI_TU_TOKEN_JWT'; // reemplace con lógica desde SharedPreferences
 
+    AppLogger.info("Cargando historial de tipo: $tipo, página: $currentPage");
+
     final response = await http.get(
       uri,
       headers: {'Authorization': 'Bearer $token'},
@@ -52,8 +55,11 @@ class _HistorialPageState extends State<HistorialPage> {
         totalPages = data['pages'];
         currentPage = data['current_page'];
       });
+      AppLogger.info(
+        "Historial cargado exitosamente: ${movimientos.length} movimientos encontrados.",
+      );
     } else {
-      print('Error al obtener historial');
+      AppLogger.error("Error al obtener historial: ${response.statusCode}");
     }
   }
 
@@ -143,24 +149,20 @@ class _HistorialPageState extends State<HistorialPage> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(
-                      Icons.search,
-                      color: Colors.white,
-                    ), // Botón de búsqueda con ícono de lupa
+                    icon: Icon(Icons.search, color: Colors.white),
                     onPressed: () {
                       setState(() {
-                        searchText = _searchController.text
-                            .trim(); // Obtiene el texto ingresado
+                        searchText = _searchController.text.trim();
                         currentPage = 1; // Reinicia a la primera página
                       });
+                      AppLogger.info(
+                        "Buscando historial con texto: $searchText",
+                      );
                       fetchHistorial(); // Llama a la función para obtener el historial
                     },
                   ),
                   PopupMenuButton<String>(
-                    icon: Icon(
-                      Icons.filter_alt,
-                      color: Colors.white,
-                    ), // Botón de filtro
+                    icon: Icon(Icons.filter_alt, color: Colors.white),
                     onSelected: ordenarMovimientos,
                     itemBuilder: (BuildContext context) {
                       return [
@@ -262,6 +264,9 @@ class _HistorialPageState extends State<HistorialPage> {
                           ),
                           child: Text('VER'),
                           onPressed: () {
+                            AppLogger.info(
+                              "Navegando a DetalleMovimientoPage con ID: ${mov['id']}",
+                            );
                             Navigator.push(
                               context,
                               MaterialPageRoute(

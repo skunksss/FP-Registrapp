@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:drappnew/pages/DespachoStep2Page.dart';
+import 'package:drappnew/services/logger.dart';
 
 class DespachoStep1Page extends StatefulWidget {
   const DespachoStep1Page({super.key});
@@ -16,7 +17,14 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
     final guia = guiaController.text.trim();
     final rutEmpresa = rutEmpresaController.text.trim();
 
+    AppLogger.info(
+      "Intentando continuar con guía: $guia y RUT Empresa: $rutEmpresa",
+    );
+
     if (guia.isNotEmpty && rutEmpresa.isNotEmpty) {
+      AppLogger.info(
+        "Navegando a DespachoStep2Page con guía: $guia y RUT Empresa: $rutEmpresa",
+      );
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -25,6 +33,7 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
         ),
       );
     } else {
+      AppLogger.warning("Campos incompletos: guía o RUT Empresa vacíos");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor completa todos los campos')),
       );

@@ -14,7 +14,6 @@ despachos_bp = Blueprint("despachos", __name__)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
 
-# Instancia de Limiter (si no la tienes global, puedes crearla aquí)
 limiter = Limiter(key_func=get_remote_address)
 
 def allowed_file(filename):
@@ -22,18 +21,18 @@ def allowed_file(filename):
 
 @despachos_bp.route("/", methods=["POST"])
 @jwt_required()
-@limiter.limit("20 per minute")  # Limita la creación de despachos
+@limiter.limit("20 per minute")
 def crear_despacho():
     schema = DespachoSchema()
     data = request.form.to_dict()
     errors = schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
-
     usuario_id = get_jwt_identity()
     ip = request.remote_addr
 
-    # Obtener latitud y longitud del formulario (enviados por el frontend)
+    if errors:
+        logging.warning(f"Creación de despacho fallida por usuario {usuario_id} desde IP {ip}: errores {errors}")
+        return jsonify(errors), 400
+
     latitud = request.form.get("latitud", type=float)
     longitud = request.form.get("longitud", type=float)
 
@@ -52,6 +51,8 @@ def crear_despacho():
 @despachos_bp.route("/", methods=["GET"])
 @jwt_required()
 def listar_despachos():
+    usuario_id = get_jwt_identity()
+    ip = request.remote_addr
     despachos = Despacho.query.all()
     result = []
     for d in despachos:
@@ -64,12 +65,14 @@ def listar_despachos():
             "latitud": d.latitud,
             "longitud": d.longitud
         })
+    logging.info(f"Listado de despachos solicitado por usuario {usuario_id} desde IP {ip}. Total: {len(result)}")
     return jsonify(result)
 
 @despachos_bp.route("/historial", methods=["GET"])
 @jwt_required()
 def historial_despachos():
     usuario_id = get_jwt_identity()
+    ip = request.remote_addr
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     rut_empresa = request.args.get('rut_empresa')
@@ -86,14 +89,14 @@ def historial_despachos():
         try:
             fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d")
             query = query.filter(Despacho.fecha >= fecha_inicio_dt)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Error parseando fecha_inicio: {fecha_inicio} - {e}")
     if fecha_fin:
         try:
             fecha_fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
             query = query.filter(Despacho.fecha <= fecha_fin_dt)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Error parseando fecha_fin: {fecha_fin} - {e}")
 
     despachos = query.order_by(Despacho.fecha.desc()).paginate(page=page, per_page=per_page)
     result = [{
@@ -105,6 +108,7 @@ def historial_despachos():
         "latitud": d.latitud,
         "longitud": d.longitud
     } for d in despachos.items]
+    logging.info(f"Historial de despachos solicitado por usuario {usuario_id} desde IP {ip}. Página: {page}, Total: {despachos.total}")
     return jsonify({
         "despachos": result,
         "total": despachos.total,
@@ -115,11 +119,14 @@ def historial_despachos():
 @despachos_bp.route("/<int:despacho_id>", methods=["GET"])
 @jwt_required()
 def detalle_despacho(despacho_id):
+    usuario_id = get_jwt_identity()
+    ip = request.remote_addr
     despacho = Despacho.query.get_or_404(despacho_id)
     fotos = [
         {"id": f.id, "tipo": f.tipo, "ruta_archivo": f.ruta_archivo}
         for f in despacho.fotos
     ]
+    logging.info(f"Detalle de despacho {despacho_id} solicitado por usuario {usuario_id} desde IP {ip}")
     return jsonify({
         "id": despacho.id,
         "numero_guia": despacho.numero_guia,
@@ -133,7 +140,7 @@ def detalle_despacho(despacho_id):
 
 @despachos_bp.route("/<int:despacho_id>/fotos", methods=["POST"])
 @jwt_required()
-@limiter.limit("15 per minute")  # Limita la subida de fotos por usuario/IP
+@limiter.limit("15 per minute")
 def subir_foto_despacho(despacho_id):
     despacho = Despacho.query.get_or_404(despacho_id)
     tipo = request.form.get("tipo")
@@ -148,7 +155,6 @@ def subir_foto_despacho(despacho_id):
         logging.warning(f"Subida de foto fallida para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}: tipo de archivo no permitido ({archivo.filename})")
         return jsonify({"msg": "Tipo de archivo no permitido"}), 400
 
-    # Validación de tamaño de archivo (2 MB)
     archivo.seek(0, os.SEEK_END)
     size = archivo.tell()
     archivo.seek(0)
@@ -190,7 +196,6 @@ def actualizar_despacho(despacho_id):
     despacho = Despacho.query.get_or_404(despacho_id)
     despacho.numero_guia = data["numero_guia"]
     despacho.rut_empresa = data["rut_empresa"]
-    # Actualiza latitud y longitud si se envían
     despacho.latitud = request.form.get("latitud", type=float)
     despacho.longitud = request.form.get("longitud", type=float)
     db.session.commit()
@@ -203,7 +208,6 @@ def eliminar_despacho(despacho_id):
     despacho = Despacho.query.get_or_404(despacho_id)
     usuario_id = get_jwt_identity()
     ip = request.remote_addr
-    # Elimina las fotos asociadas y sus archivos
     for foto in despacho.fotos:
         if os.path.exists(foto.ruta_archivo):
             os.remove(foto.ruta_archivo)

@@ -25,7 +25,6 @@ def historial_movimientos():
     fecha_inicio = parse_date(request.args.get('fecha_inicio', ''))
     fecha_fin = parse_date(request.args.get('fecha_fin', ''))
 
-    # Log de consulta general y filtros
     filtros = {
         "rut_empresa": rut_empresa,
         "numero_guia": numero_guia,
@@ -34,7 +33,6 @@ def historial_movimientos():
     }
     logging.info(f"Consulta de historial combinado por usuario {usuario_id} desde IP {ip} - página {page}, por página {per_page}, filtros: {filtros}")
 
-    # Filtros para despachos
     despachos_query = Despacho.query.filter_by(usuario_id=usuario_id)
     if rut_empresa:
         despachos_query = despachos_query.filter(Despacho.rut_empresa == rut_empresa)
@@ -46,7 +44,6 @@ def historial_movimientos():
         despachos_query = despachos_query.filter(Despacho.fecha <= fecha_fin)
     despachos = despachos_query.all()
 
-    # Filtros para recepciones
     recepciones_query = Recepcion.query.filter_by(usuario_id=usuario_id)
     if rut_empresa:
         recepciones_query = recepciones_query.filter(Recepcion.rut_empresa == rut_empresa)
@@ -58,7 +55,6 @@ def historial_movimientos():
         recepciones_query = recepciones_query.filter(Recepcion.fecha <= fecha_fin)
     recepciones = recepciones_query.all()
 
-    # Unir y ordenar por fecha descendente
     movimientos = []
     for d in despachos:
         movimientos.append({
@@ -78,13 +74,11 @@ def historial_movimientos():
         })
     movimientos.sort(key=lambda x: x["fecha"], reverse=True)
 
-    # Paginación manual
     total = len(movimientos)
     start = (page - 1) * per_page
     end = start + per_page
     movimientos_paginados = movimientos[start:end]
 
-    # Log de paginación
     logging.info(f"Usuario {usuario_id} desde IP {ip} accede a página {page} de historial combinado (movimientos totales: {total})")
 
     return jsonify({
@@ -135,7 +129,6 @@ def historial_despachos():
         "usuario_id": d.usuario_id
     } for d in despachos.items]
 
-    # Log de paginación
     logging.info(f"Usuario {usuario_id} desde IP {ip} accede a página {page} de historial de despachos (total: {despachos.total})")
 
     return jsonify({
@@ -186,7 +179,6 @@ def historial_recepciones():
         "usuario_id": r.usuario_id
     } for r in recepciones.items]
 
-    # Log de paginación
     logging.info(f"Usuario {usuario_id} desde IP {ip} accede a página {page} de historial de recepciones (total: {recepciones.total})")
 
     return jsonify({

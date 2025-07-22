@@ -22,6 +22,8 @@ dependencies:
   image_picker: ^1.0.4
   permission_handler: ^12.0.1
 
+  logger: ^1.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -29,3 +31,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/fpetricio-logo-small-blanco.png
+    - assets/images/body1.jpg
+    - assets/images/body2.jpg

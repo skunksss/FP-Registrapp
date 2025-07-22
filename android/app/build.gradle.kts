@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.drappnew"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973" // <-- Cambiado aquí para solucionar el conflicto
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

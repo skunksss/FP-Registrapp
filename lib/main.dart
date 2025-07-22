@@ -1,7 +1,10 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'pages/login_page.dart';
+import 'services/logger.dart';
 
 void main() {
+  AppLogger.info("Aplicación iniciando...");
   runApp(const MyApp());
 }
 

@@ -1,6 +1,8 @@
+// lib/pages/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:drappnew/services/auth_service.dart';
 import 'package:drappnew/pages/home_page.dart';
+import 'package:drappnew/services/logger.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,30 +19,40 @@ class _LoginPageState extends State<LoginPage> {
 
   void _login() async {
     setState(() => isLoading = true);
-
     final rut = rutController.text.trim();
     final password = passwordController.text;
 
-    final success = await AuthService.login(rut, password);
+    AppLogger.info("Intentando iniciar sesión con RUT: $rut");
 
-    setState(() => isLoading = false);
+    try {
+      final success = await AuthService.login(rut, password);
+      setState(() => isLoading = false);
 
-    if (success) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePage()),
+      if (success) {
+        AppLogger.info("Inicio de sesión exitoso para RUT: $rut");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      } else {
+        AppLogger.warning("Credenciales incorrectas para RUT: $rut");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Credenciales incorrectas')),
+        );
+      }
+    } catch (e) {
+      AppLogger.error("Error durante el inicio de sesión: $e");
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error en el inicio de sesión')),
       );
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Credenciales incorrectas')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // Fondo negro
+      backgroundColor: Colors.black,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -51,7 +63,7 @@ class _LoginPageState extends State<LoginPage> {
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.amber, // Amarillo igual que en Home
+                  color: Colors.amber,
                 ),
               ),
               const SizedBox(height: 8),
@@ -63,7 +75,7 @@ class _LoginPageState extends State<LoginPage> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white, // Caja blanca
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
@@ -111,8 +123,8 @@ class _LoginPageState extends State<LoginPage> {
                             child: ElevatedButton(
                               onPressed: _login,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.amber, // Amarillo
-                                foregroundColor: Colors.black, // Texto negro
+                                backgroundColor: Colors.amber,
+                                foregroundColor: Colors.black,
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),

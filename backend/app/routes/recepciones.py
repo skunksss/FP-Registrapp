@@ -14,7 +14,6 @@ recepciones_bp = Blueprint("recepciones", __name__)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
 
-# Instancia de Limiter (si no la tienes global, puedes crearla aquí)
 limiter = Limiter(key_func=get_remote_address)
 
 def allowed_file(filename):
@@ -22,18 +21,17 @@ def allowed_file(filename):
 
 @recepciones_bp.route("/", methods=["POST"])
 @jwt_required()
-@limiter.limit("20 per minute")  # Limita la creación de recepciones
+@limiter.limit("20 per minute")
 def crear_recepcion():
     schema = RecepcionSchema()
     data = request.form.to_dict()
     errors = schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
-
     usuario_id = get_jwt_identity()
     ip = request.remote_addr
+    if errors:
+        logging.warning(f"Creación de recepción fallida por usuario {usuario_id} desde IP {ip}: errores {errors}")
+        return jsonify(errors), 400
 
-    # Obtener latitud y longitud del formulario (enviados por el frontend)
     latitud = request.form.get("latitud", type=float)
     longitud = request.form.get("longitud", type=float)
 
@@ -52,6 +50,8 @@ def crear_recepcion():
 @recepciones_bp.route("/", methods=["GET"])
 @jwt_required()
 def listar_recepciones():
+    usuario_id = get_jwt_identity()
+    ip = request.remote_addr
     recepciones = Recepcion.query.all()
     result = []
     for r in recepciones:
@@ -64,12 +64,14 @@ def listar_recepciones():
             "latitud": r.latitud,
             "longitud": r.longitud
         })
+    logging.info(f"Listado de recepciones solicitado por usuario {usuario_id} desde IP {ip}. Total: {len(result)}")
     return jsonify(result)
 
 @recepciones_bp.route("/historial", methods=["GET"])
 @jwt_required()
 def historial_recepciones():
     usuario_id = get_jwt_identity()
+    ip = request.remote_addr
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     rut_empresa = request.args.get('rut_empresa')
@@ -86,14 +88,14 @@ def historial_recepciones():
         try:
             fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d")
             query = query.filter(Recepcion.fecha >= fecha_inicio_dt)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Error parseando fecha_inicio: {fecha_inicio} - {e}")
     if fecha_fin:
         try:
             fecha_fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
             query = query.filter(Recepcion.fecha <= fecha_fin_dt)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Error parseando fecha_fin: {fecha_fin} - {e}")
 
     recepciones = query.order_by(Recepcion.fecha.desc()).paginate(page=page, per_page=per_page)
     result = [{
@@ -105,6 +107,7 @@ def historial_recepciones():
         "latitud": r.latitud,
         "longitud": r.longitud
     } for r in recepciones.items]
+    logging.info(f"Historial de recepciones solicitado por usuario {usuario_id} desde IP {ip}. Página: {page}, Total: {recepciones.total}")
     return jsonify({
         "recepciones": result,
         "total": recepciones.total,
@@ -115,11 +118,14 @@ def historial_recepciones():
 @recepciones_bp.route("/<int:recepcion_id>", methods=["GET"])
 @jwt_required()
 def detalle_recepcion(recepcion_id):
+    usuario_id = get_jwt_identity()
+    ip = request.remote_addr
     recepcion = Recepcion.query.get_or_404(recepcion_id)
     fotos = [
         {"id": f.id, "tipo": f.tipo, "ruta_archivo": f.ruta_archivo}
         for f in recepcion.fotos
     ]
+    logging.info(f"Detalle de recepción {recepcion_id} solicitado por usuario {usuario_id} desde IP {ip}")
     return jsonify({
         "id": recepcion.id,
         "numero_guia": recepcion.numero_guia,
@@ -133,7 +139,7 @@ def detalle_recepcion(recepcion_id):
 
 @recepciones_bp.route("/<int:recepcion_id>/fotos", methods=["POST"])
 @jwt_required()
-@limiter.limit("15 per minute")  # Limita la subida de fotos por usuario/IP
+@limiter.limit("15 per minute")
 def subir_foto_recepcion(recepcion_id):
     recepcion = Recepcion.query.get_or_404(recepcion_id)
     tipo = request.form.get("tipo")
@@ -148,7 +154,6 @@ def subir_foto_recepcion(recepcion_id):
         logging.warning(f"Subida de foto fallida para recepción {recepcion_id} por usuario {usuario_id} desde IP {ip}: tipo de archivo no permitido ({archivo.filename})")
         return jsonify({"msg": "Tipo de archivo no permitido"}), 400
 
-    # Validación de tamaño de archivo (2 MB)
     archivo.seek(0, os.SEEK_END)
     size = archivo.tell()
     archivo.seek(0)
@@ -190,7 +195,6 @@ def actualizar_recepcion(recepcion_id):
     recepcion = Recepcion.query.get_or_404(recepcion_id)
     recepcion.numero_guia = data["numero_guia"]
     recepcion.rut_empresa = data["rut_empresa"]
-    # Actualiza latitud y longitud si se envían
     recepcion.latitud = request.form.get("latitud", type=float)
     recepcion.longitud = request.form.get("longitud", type=float)
     db.session.commit()
@@ -203,7 +207,6 @@ def eliminar_recepcion(recepcion_id):
     recepcion = Recepcion.query.get_or_404(recepcion_id)
     usuario_id = get_jwt_identity()
     ip = request.remote_addr
-    # Elimina las fotos asociadas y sus archivos
     for foto in recepcion.fotos:
         if os.path.exists(foto.ruta_archivo):
             os.remove(foto.ruta_archivo)

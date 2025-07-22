@@ -1,7 +1,9 @@
+// lib/pages/home_page.dart
 import 'package:flutter/material.dart';
 import 'package:drappnew/pages/DespachoStep1Page.dart';
 import 'package:drappnew/pages/RecepcionStep1Page.dart';
 import 'package:drappnew/pages/HistorialPage.dart';
+import 'package:drappnew/services/logger.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -39,6 +41,7 @@ class HomePage extends StatelessWidget {
               leading: const Icon(Icons.assignment),
               title: const Text('Despachos'),
               onTap: () {
+                AppLogger.info("Navegando a Despachos");
                 Navigator.pop(context);
                 Navigator.push(
                   context,
@@ -52,12 +55,12 @@ class HomePage extends StatelessWidget {
               leading: const Icon(Icons.assignment),
               title: const Text('Recepciones'),
               onTap: () {
+                AppLogger.info("Navegando a Recepciones");
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        const RecepcionStep1Page(), // Navegación a Recepción
+                    builder: (context) => const RecepcionStep1Page(),
                   ),
                 );
               },
@@ -66,6 +69,7 @@ class HomePage extends StatelessWidget {
               leading: const Icon(Icons.inventory),
               title: const Text('Historial'),
               onTap: () {
+                AppLogger.info("Navegando a Historial");
                 Navigator.pop(context);
                 Navigator.push(
                   context,
@@ -77,8 +81,8 @@ class HomePage extends StatelessWidget {
               leading: const Icon(Icons.logout),
               title: const Text('Cerrar sesión'),
               onTap: () {
+                AppLogger.info("Cerrando sesión");
                 Navigator.pop(context);
-                // Agrega lógica para cerrar sesión si es necesario
               },
             ),
           ],
@@ -93,8 +97,21 @@ class HomePage extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  const SizedBox(height: 20),
+                  Image.asset('assets/images/fpetricio-logo-small-blanco.png'),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Gestión de cargas',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
+                      AppLogger.info("Navegando a Despacho desde Home");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -116,11 +133,11 @@ class HomePage extends StatelessWidget {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
+                      AppLogger.info("Navegando a Recepción desde Home");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              const RecepcionStep1Page(), // Navegación a Recepción
+                          builder: (context) => const RecepcionStep1Page(),
                         ),
                       );
                     },
@@ -146,8 +163,24 @@ class HomePage extends StatelessWidget {
                     style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                   const SizedBox(height: 20),
+                  Image.asset(
+                    'assets/images/body1.jpg',
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Ver historial',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
+                      AppLogger.info("Navegando a Historial desde Home");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -166,6 +199,20 @@ class HomePage extends StatelessWidget {
                     ),
                     child: const Text('Historial'),
                   ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Consulta el historial completo de todas tus operaciones\n'
+                    'y mantén un registro detallado de cada movimiento.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  Image.asset(
+                    'assets/images/body2.jpg',
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),

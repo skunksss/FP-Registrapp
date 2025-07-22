@@ -1,3 +1,4 @@
+// lib/pages/RecepcionStep2Page.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:drappnew/services/auth_service.dart';
 import 'dart:convert';
+import 'package:drappnew/services/logger.dart';
 
 class RecepcionStep2Page extends StatefulWidget {
   final String numeroGuia;
@@ -34,6 +36,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
 
     if (!cameraStatus.isGranted ||
         (!storageStatus.isGranted && !mediaStatus.isGranted)) {
+      AppLogger.warning("Permisos no concedidos para cámara o almacenamiento");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Permisos no concedidos')));
@@ -49,6 +52,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
 
     if (picked == null) return null;
 
+    AppLogger.info("Imagen seleccionada: ${picked.path}");
     return File(picked.path);
   }
 
@@ -71,12 +75,13 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
       final responseBody = await response.stream.bytesToString();
       if (response.statusCode == 201) {
         final json = jsonDecode(responseBody);
+        AppLogger.info("Recepción creada con ID: ${json['id']}");
         return json['id'];
       } else {
-        print('Error al crear recepción: $responseBody');
+        AppLogger.error("Error al crear recepción: $responseBody");
       }
     } catch (e) {
-      print('Excepción al crear recepción: $e');
+      AppLogger.error("Excepción al crear recepción: $e");
     }
     return null;
   }
@@ -98,15 +103,18 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
       final response = await request.send();
       final res = await response.stream.bytesToString();
       if (response.statusCode != 201) {
-        print('Error al subir foto $tipo: $res');
+        AppLogger.error("Error al subir foto $tipo: $res");
+      } else {
+        AppLogger.info("Foto $tipo subida exitosamente");
       }
     } catch (e) {
-      print('Excepción al subir foto $tipo: $e');
+      AppLogger.error("Excepción al subir foto $tipo: $e");
     }
   }
 
   void _guardarYRecepcionar() async {
     if (carnetImage == null || patenteImage == null || cargaImage == null) {
+      AppLogger.warning("Intento de guardar recepción sin todas las fotos");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Debes tomar las 3 fotos')));
@@ -115,6 +123,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
 
     final recepcionId = await crearRecepcion();
     if (recepcionId == null) {
+      AppLogger.error("Error al crear recepción");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Error al crear recepción')));
@@ -141,6 +150,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
       const SnackBar(content: Text('Recepción guardada exitosamente')),
     );
 
+    AppLogger.info("Recepción guardada exitosamente con ID: $recepcionId");
     Navigator.pop(context);
   }
 

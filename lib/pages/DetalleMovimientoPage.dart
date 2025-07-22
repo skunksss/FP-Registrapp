@@ -1,5 +1,7 @@
+// lib/pages/DetalleMovimientoPage.dart
 import 'package:flutter/material.dart';
 import 'package:drappnew/services/api_service.dart';
+import 'package:drappnew/services/logger.dart';
 
 class DetalleMovimientoPage extends StatefulWidget {
   final String tipo;
@@ -25,6 +27,9 @@ class _DetalleMovimientoPageState extends State<DetalleMovimientoPage> {
       widget.tipo,
       widget.id,
     );
+    AppLogger.info(
+      "Cargando detalles del movimiento ID: ${widget.id} de tipo: ${widget.tipo}",
+    );
   }
 
   @override
@@ -46,6 +51,7 @@ class _DetalleMovimientoPageState extends State<DetalleMovimientoPage> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
+            AppLogger.error("Error al cargar detalles: ${snapshot.error}");
             return Center(child: Text('Error: ${snapshot.error}'));
           } else {
             final data = snapshot.data!;
