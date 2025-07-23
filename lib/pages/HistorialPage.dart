@@ -29,10 +29,10 @@ class _HistorialPageState extends State<HistorialPage> {
   Future<void> fetchHistorial() async {
     final uri = Uri.parse(
       tipo == 'despachos'
-          ? 'https://tu-backend.com/historial/despachos?page=$currentPage&numero_guia=$searchText'
+          ? 'https://192.170.6.150/historial/despachos?page=$currentPage&numero_guia=$searchText'
           : tipo == 'recepciones'
-          ? 'https://tu-backend.com/historial/recepciones?page=$currentPage&numero_guia=$searchText'
-          : 'https://tu-backend.com/historial/?page=$currentPage&numero_guia=$searchText',
+          ? 'https://192.170.6.150/historial/recepciones?page=$currentPage&numero_guia=$searchText'
+          : 'https://192.170.6.150/historial/?page=$currentPage&numero_guia=$searchText',
     );
     final token =
         'AQUI_TU_TOKEN_JWT'; // reemplace con lógica desde SharedPreferences

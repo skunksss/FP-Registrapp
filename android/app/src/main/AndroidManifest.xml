@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.drappnew">
 
+    <!-- ✅ Permiso de Internet necesario para peticiones HTTP -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <!-- ✅ Permisos necesarios para cámara y acceso a archivos/imágenes -->
     <uses-permission android:name="android.permission.CAMERA" />
 
@@ -18,7 +21,8 @@
     <application
         android:name="${applicationName}"
         android:label="drappnew"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         
         <activity
             android:name=".MainActivity"

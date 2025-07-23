@@ -24,7 +24,7 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    CORS(app, origins="*")
+    CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 
     # Configuración de Flask-Limiter (límite global: 1000 requests por día por IP)
     limiter = Limiter(

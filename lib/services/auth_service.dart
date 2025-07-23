@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:drappnew/services/logger.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:5000'; // Flask local
+  static const String baseUrl = 'http://192.170.6.150:5000'; // Flask local
   static String? token;
 
   static Future<bool> login(String rut, String password) async {

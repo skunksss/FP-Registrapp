@@ -63,7 +63,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
   }
 
   Future<int?> crearDespacho() async {
-    final uri = Uri.parse('http://localhost:5000/despachos/');
+    final uri = Uri.parse('http://192.170.6.150:5000/despachos/');
     final request = http.MultipartRequest('POST', uri)
       ..fields['numero_guia'] = widget.numeroGuia
       ..fields['rut_empresa'] = widget.rutEmpresa
@@ -90,7 +90,9 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
     required File imagen,
     required String tipo,
   }) async {
-    final uri = Uri.parse('http://localhost:5000/despachos/$despachoId/fotos');
+    final uri = Uri.parse(
+      'http://192.170.6.150:5000/despachos/$despachoId/fotos',
+    );
     final request = http.MultipartRequest('POST', uri)
       ..headers['Authorization'] = 'Bearer ${AuthService.token}'
       ..fields['tipo'] = tipo

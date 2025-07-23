@@ -64,7 +64,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
   }
 
   Future<int?> crearRecepcion() async {
-    final uri = Uri.parse('http://localhost:5000/recepciones/');
+    final uri = Uri.parse('http://192.170.6.150/recepciones/');
     final request = http.MultipartRequest('POST', uri)
       ..fields['numero_guia'] = widget.numeroGuia
       ..fields['rut_empresa'] = widget.rutEmpresa
@@ -92,7 +92,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
     required String tipo,
   }) async {
     final uri = Uri.parse(
-      'http://localhost:5000/recepciones/$recepcionId/fotos',
+      'http://192.170.6.150:5000/recepciones/$recepcionId/fotos',
     );
     final request = http.MultipartRequest('POST', uri)
       ..headers['Authorization'] = 'Bearer ${AuthService.token}'

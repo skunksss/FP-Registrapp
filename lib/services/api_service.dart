@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:drappnew/services/logger.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:5000'; // CAMBIA ESTO
+  static const String baseUrl = 'http://192.170.6.150:5000'; // CAMBIA ESTO
 
   // Obtiene el token almacenado localmente
   static Future<String?> getToken() async {
