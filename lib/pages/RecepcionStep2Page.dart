@@ -1,4 +1,3 @@
-// lib/pages/RecepcionStep2Page.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -64,7 +63,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
   }
 
   Future<int?> crearRecepcion() async {
-    final uri = Uri.parse('http://192.170.6.150/recepciones/');
+    final uri = Uri.parse('http://192.170.6.150:5000/recepciones/');
     final request = http.MultipartRequest('POST', uri)
       ..fields['numero_guia'] = widget.numeroGuia
       ..fields['rut_empresa'] = widget.rutEmpresa
@@ -112,7 +111,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
     }
   }
 
-  void _guardarYRecepcionar() async {
+  void _guardarYRecibir() async {
     if (carnetImage == null || patenteImage == null || cargaImage == null) {
       AppLogger.warning("Intento de guardar recepción sin todas las fotos");
       ScaffoldMessenger.of(
@@ -245,7 +244,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
               ),
             ),
             buildFotoBox(
-              label: 'Tomar foto carnet:',
+              label: 'Tomar foto cédula de indentidad:',
               imageFile: carnetImage,
               onPressed: () =>
                   _pickImage((file) => setState(() => carnetImage = file)),
@@ -266,7 +265,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _guardarYRecepcionar,
+                onPressed: _guardarYRecibir,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFC107),
                   foregroundColor: Colors.black,
@@ -276,7 +275,7 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
                   ),
                 ),
                 child: const Text(
-                  'Guardar y recepcionar',
+                  'Guardar y recibir',
                   style: TextStyle(fontSize: 18),
                 ),
               ),

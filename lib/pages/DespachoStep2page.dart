@@ -240,7 +240,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
               ),
             ),
             buildFotoBox(
-              label: 'Tomar foto carnet:',
+              label: 'Tomar foto cédula de indentidad:',
               imageFile: carnetImage,
               onPressed: () =>
                   _pickImage((file) => setState(() => carnetImage = file)),

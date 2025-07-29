@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
@@ -8,7 +8,7 @@ from flask_limiter.util import get_remote_address
 import logging
 from logging.handlers import RotatingFileHandler
 import os
-from flasgger import Swagger  # <-- Agrega esta línea
+from flasgger import Swagger
 from flask_migrate import Migrate
 
 db = SQLAlchemy()
@@ -26,14 +26,14 @@ def create_app():
     jwt.init_app(app)
     CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 
-    # Configuración de Flask-Limiter (límite global: 1000 requests por día por IP)
+    # Configuración de Flask-Limiter
     limiter = Limiter(
         get_remote_address,
         app=app,
         default_limits=["1000 per day"]
     )
 
-    # Configuración centralizada de logging
+    # Configuración de logging
     logs_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
     os.makedirs(logs_dir, exist_ok=True)
     log_file = os.path.join(logs_dir, 'app_auditoria.log')
@@ -49,7 +49,7 @@ def create_app():
     logging.getLogger().addHandler(handler)
 
     # Inicializa Swagger
-    Swagger(app)  # <-- Agrega esta línea
+    Swagger(app)
 
     # Importa y registra tus rutas
     from app.routes.auth import auth_bp
@@ -59,6 +59,13 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(despachos_bp, url_prefix="/despachos")
     app.register_blueprint(recepciones_bp, url_prefix="/recepciones")
+
+    # Nueva ruta: Servir archivos desde la carpeta /app/uploads
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), 'app', 'uploads')
+
+    @app.route('/uploads/<path:filename>')
+    def uploaded_file(filename):
+        return send_from_directory(UPLOAD_FOLDER, filename)
 
     # Configuración de revocación de tokens JWT
     @jwt.token_in_blocklist_loader

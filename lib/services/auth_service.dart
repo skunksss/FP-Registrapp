@@ -1,6 +1,7 @@
 // lib/services/auth_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:drappnew/services/logger.dart';
 
 class AuthService {
@@ -23,10 +24,22 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         token = data['access_token'];
-        AppLogger.info("Token recibido: $token");
-        return true;
+
+        if (token != null && token!.isNotEmpty) {
+          // Guardar el token en SharedPreferences
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('token', token!);
+
+          AppLogger.info("Token guardado en SharedPreferences: $token");
+          return true;
+        } else {
+          AppLogger.warning("Login exitoso, pero token vacío o nulo.");
+          return false;
+        }
       } else {
-        AppLogger.error("Error en login: ${response.body}");
+        AppLogger.error(
+          "Error en login: ${response.statusCode} ${response.body}",
+        );
         return false;
       }
     } catch (e) {

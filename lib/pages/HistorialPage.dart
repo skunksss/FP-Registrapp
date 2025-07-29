@@ -1,9 +1,9 @@
-// lib/pages/HistorialPage.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'DetalleMovimientoPage.dart'; // debes crear esta página luego
+import 'DetalleMovimientoPage.dart';
 import 'package:drappnew/services/logger.dart';
+import 'package:drappnew/services/auth_service.dart';
 
 class HistorialPage extends StatefulWidget {
   @override
@@ -23,20 +23,28 @@ class _HistorialPageState extends State<HistorialPage> {
   @override
   void initState() {
     super.initState();
-    fetchHistorial(); // Cargar historial al iniciar
+    fetchHistorial();
   }
 
   Future<void> fetchHistorial() async {
-    final uri = Uri.parse(
-      tipo == 'despachos'
-          ? 'https://192.170.6.150/historial/despachos?page=$currentPage&numero_guia=$searchText'
-          : tipo == 'recepciones'
-          ? 'https://192.170.6.150/historial/recepciones?page=$currentPage&numero_guia=$searchText'
-          : 'https://192.170.6.150/historial/?page=$currentPage&numero_guia=$searchText',
-    );
-    final token =
-        'AQUI_TU_TOKEN_JWT'; // reemplace con lógica desde SharedPreferences
+    String baseUrl;
+    if (tipo == 'despachos') {
+      baseUrl = 'http://192.170.6.150:5000/historial/despachos';
+    } else if (tipo == 'recepciones') {
+      baseUrl = 'http://192.170.6.150:5000/historial/recepciones';
+    } else {
+      baseUrl =
+          'http://192.170.6.150:5000/historial'; // Esta URL debe existir en Flask
+    }
 
+    final params = {
+      'page': currentPage.toString(),
+      'per_page': '10',
+      if (searchText.isNotEmpty) 'numero_guia': searchText,
+    };
+
+    final uri = Uri.parse(baseUrl).replace(queryParameters: params);
+    final token = AuthService.token ?? '';
     AppLogger.info("Cargando historial de tipo: $tipo, página: $currentPage");
 
     final response = await http.get(
@@ -59,16 +67,21 @@ class _HistorialPageState extends State<HistorialPage> {
         "Historial cargado exitosamente: ${movimientos.length} movimientos encontrados.",
       );
     } else {
-      AppLogger.error("Error al obtener historial: ${response.statusCode}");
+      AppLogger.error(
+        "Error al obtener historial: ${response.statusCode} - ${response.body}",
+      );
+      setState(() {
+        movimientos = [];
+      });
     }
   }
 
   void cambiarTipo(String nuevoTipo) {
     setState(() {
       tipo = nuevoTipo;
-      currentPage = 1; // Reiniciar a la primera página
+      currentPage = 1;
     });
-    fetchHistorial(); // Llamar a la función para obtener el historial
+    fetchHistorial();
   }
 
   void siguientePagina() {
@@ -87,8 +100,7 @@ class _HistorialPageState extends State<HistorialPage> {
 
   void ordenarMovimientos(String criterio) {
     setState(() {
-      ordenamiento = criterio; // Actualiza el texto del filtro
-      // Aquí puedes implementar la lógica para ordenar los movimientos
+      ordenamiento = criterio;
       if (criterio == 'Fecha Ascendente') {
         movimientos.sort((a, b) => a['fecha'].compareTo(b['fecha']));
       } else if (criterio == 'Fecha Descendente') {
@@ -113,11 +125,7 @@ class _HistorialPageState extends State<HistorialPage> {
         backgroundColor: Colors.amber,
         title: Text(
           'Historial',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         leading: IconButton(
@@ -129,187 +137,184 @@ class _HistorialPageState extends State<HistorialPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[800],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      style: TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar...',
-                        hintStyle: TextStyle(color: Colors.white54),
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.search, color: Colors.white),
-                    onPressed: () {
-                      setState(() {
-                        searchText = _searchController.text.trim();
-                        currentPage = 1; // Reinicia a la primera página
-                      });
-                      AppLogger.info(
-                        "Buscando historial con texto: $searchText",
-                      );
-                      fetchHistorial(); // Llama a la función para obtener el historial
-                    },
-                  ),
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.filter_alt, color: Colors.white),
-                    onSelected: ordenarMovimientos,
-                    itemBuilder: (BuildContext context) {
-                      return [
-                        PopupMenuItem<String>(
-                          value: 'Fecha Ascendente',
-                          child: Text('Fecha Ascendente'),
-                        ),
-                        PopupMenuItem<String>(
-                          value: 'Fecha Descendente',
-                          child: Text('Fecha Descendente'),
-                        ),
-                        PopupMenuItem<String>(
-                          value: 'RUT Ascendente',
-                          child: Text('RUT Ascendente'),
-                        ),
-                        PopupMenuItem<String>(
-                          value: 'RUT Descendente',
-                          child: Text('RUT Descendente'),
-                        ),
-                      ];
-                    },
-                  ),
-                ],
-              ),
-            ),
+            _buildSearchAndFilters(),
             SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: tipo == 'despachos'
-                        ? Colors.amber
-                        : Colors.grey,
-                    foregroundColor: Colors.black,
-                  ),
-                  onPressed: () => cambiarTipo('despachos'),
-                  child: Text('Despacho'),
-                ),
-                SizedBox(width: 10),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: tipo == 'recepciones'
-                        ? Colors.amber
-                        : Colors.grey,
-                    foregroundColor: Colors.black,
-                  ),
-                  onPressed: () => cambiarTipo('recepciones'),
-                  child: Text('Recepción'),
-                ),
-                SizedBox(width: 10),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: tipo == 'movimientos'
-                        ? Colors.amber
-                        : Colors.grey,
-                    foregroundColor: Colors.black,
-                  ),
-                  onPressed: () => cambiarTipo('movimientos'),
-                  child: Text('Todos'),
-                ),
-              ],
-            ),
+            _buildTipoSelector(),
             SizedBox(height: 10),
-            Expanded(
-              child: ListView.builder(
-                itemCount: movimientos.length,
-                itemBuilder: (context, index) {
-                  final mov = movimientos[index];
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 10),
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'RUT: ${mov['rut_empresa']}',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text('Nº guía: ${mov['numero_guia']}'),
-                              Text(
-                                'Fecha: ${mov['fecha'].toString().substring(0, 10)}',
-                              ),
-                            ],
-                          ),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
-                          ),
-                          child: Text('VER'),
-                          onPressed: () {
-                            AppLogger.info(
-                              "Navegando a DetalleMovimientoPage con ID: ${mov['id']}",
-                            );
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => DetalleMovimientoPage(
-                                  id: mov['id'],
-                                  tipo: tipo,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: paginaAnterior,
-                  child: Text(
-                    'Anterior',
-                    style: TextStyle(color: Colors.amber),
-                  ),
-                ),
-                Text(
-                  'Página $currentPage de $totalPages',
-                  style: TextStyle(color: Colors.white),
-                ),
-                TextButton(
-                  onPressed: siguientePagina,
-                  child: Text(
-                    'Siguiente',
-                    style: TextStyle(color: Colors.amber),
-                  ),
-                ),
-              ],
-            ),
+            _buildListaMovimientos(),
+            _buildPaginacion(),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchAndFilters() {
+    return Container(
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Buscar...',
+                hintStyle: TextStyle(color: Colors.white54),
+                border: InputBorder.none,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.search, color: Colors.white),
+            onPressed: () {
+              setState(() {
+                searchText = _searchController.text.trim();
+                currentPage = 1;
+              });
+              fetchHistorial();
+            },
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.filter_alt, color: Colors.white),
+            onSelected: ordenarMovimientos,
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'Fecha Ascendente',
+                child: Text('Fecha Ascendente'),
+              ),
+              PopupMenuItem(
+                value: 'Fecha Descendente',
+                child: Text('Fecha Descendente'),
+              ),
+              PopupMenuItem(
+                value: 'RUT Ascendente',
+                child: Text('RUT Ascendente'),
+              ),
+              PopupMenuItem(
+                value: 'RUT Descendente',
+                child: Text('RUT Descendente'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTipoSelector() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildTipoButton('despachos', 'Despacho'),
+        SizedBox(width: 10),
+        _buildTipoButton('recepciones', 'Recepción'),
+        SizedBox(width: 10),
+        _buildTipoButton('movimientos', 'Todos'),
+      ],
+    );
+  }
+
+  Widget _buildTipoButton(String tipoValor, String label) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: tipo == tipoValor ? Colors.amber : Colors.grey,
+        foregroundColor: Colors.black,
+      ),
+      onPressed: () => cambiarTipo(tipoValor),
+      child: Text(label),
+    );
+  }
+
+  Widget _buildListaMovimientos() {
+    if (movimientos.isEmpty) {
+      return Expanded(
+        child: Center(
+          child: Text(
+            'No hay movimientos para mostrar',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      );
+    }
+
+    return Expanded(
+      child: ListView.builder(
+        itemCount: movimientos.length,
+        itemBuilder: (context, index) {
+          final mov = movimientos[index];
+          return Container(
+            margin: EdgeInsets.only(bottom: 10),
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'RUT: ${mov['rut_empresa']}',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text('Nº guía: ${mov['numero_guia']}'),
+                      Text(
+                        'Fecha: ${DateTime.parse(mov['fecha']).toLocal().toString().substring(0, 10)}',
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                  ),
+                  child: Text('VER'),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DetalleMovimientoPage(
+                          id: mov['id'],
+                          tipo: tipo == 'movimientos' ? mov['tipo'] : tipo,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPaginacion() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        TextButton(
+          onPressed: paginaAnterior,
+          child: Text('Anterior', style: TextStyle(color: Colors.amber)),
+        ),
+        Text(
+          'Página $currentPage de $totalPages',
+          style: TextStyle(color: Colors.white),
+        ),
+        TextButton(
+          onPressed: siguientePagina,
+          child: Text('Siguiente', style: TextStyle(color: Colors.amber)),
+        ),
+      ],
     );
   }
 }
