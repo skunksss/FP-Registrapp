@@ -1,18 +1,21 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:drappnew/services/logger.dart';
+import 'dart:convert'; // Para decodificar JSON.
+import 'package:http/http.dart' as http; // Para enviar solicitudes HTTP.
+import 'package:shared_preferences/shared_preferences.dart'; // Para acceder al token guardado localmente.
+import 'package:drappnew/services/logger.dart'; // Logger personalizado para seguimiento.
+import 'dart:typed_data'; // Para manejar imágenes en bytes.
 
+// Servicio que centraliza las peticiones a la API del backend Flask.
 class ApiService {
   static const String baseUrl = 'http://192.170.6.150:5000';
 
-  // Obtiene el token almacenado localmente
+  // Obtiene el token JWT guardado localmente
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('token');
   }
 
-  // Obtener historial filtrado y paginado
+  /// Obtiene historial (despachos, recepciones o ambos)
+  /// con filtros opcionales y paginación
   static Future<Map<String, dynamic>> getHistorial({
     String tipo = '',
     String? rutEmpresa,
@@ -35,11 +38,13 @@ class ApiService {
       'Authorization': 'Bearer $token',
     };
 
+    // Construye la URL según el tipo de historial
     String url = '$baseUrl/historial';
     if (tipo.isNotEmpty && tipo != 'movimientos') {
       url += '/$tipo';
     }
 
+    // Construye los parámetros de búsqueda si se especifican
     Map<String, String> params = {
       'page': page.toString(),
       'per_page': perPage.toString(),
@@ -58,7 +63,6 @@ class ApiService {
     }
 
     final uri = Uri.parse(url).replace(queryParameters: params);
-
     AppLogger.info("Llamando a la API: $uri");
 
     final response = await http.get(uri, headers: headers);
@@ -75,7 +79,7 @@ class ApiService {
     }
   }
 
-  // Obtener detalle de despacho o recepción por ID
+  /// Obtiene el detalle completo de un movimiento (despacho o recepción)
   static Future<Map<String, dynamic>> obtenerDetalleMovimiento(
     String tipo,
     int id,
@@ -90,6 +94,7 @@ class ApiService {
 
     AppLogger.debug('Token usado para detalle: $token');
 
+    // Determina el endpoint según el tipo
     String endpoint;
     if (tipo == 'despachos' || tipo == 'despacho') {
       endpoint = '/detalle/despacho/$id';
@@ -116,6 +121,29 @@ class ApiService {
         "Error al obtener el detalle: ${response.statusCode} ${response.body}",
       );
       throw Exception('Error al obtener el detalle');
+    }
+  }
+
+  /// Descarga una imagen protegida por token desde una URL
+  static Future<Uint8List?> fetchProtectedImage(String url) async {
+    final token = await getToken();
+    if (token == null) {
+      AppLogger.error('Token no disponible para descargar imagen.');
+      return null;
+    }
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
+    } else {
+      AppLogger.error(
+        "Error al obtener imagen protegida: ${response.statusCode}",
+      );
+      return null;
     }
   }
 }

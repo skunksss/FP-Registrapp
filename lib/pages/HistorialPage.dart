@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+
 import 'DetalleMovimientoPage.dart';
 import 'package:drappnew/services/logger.dart';
 import 'package:drappnew/services/auth_service.dart';
@@ -11,21 +12,31 @@ class HistorialPage extends StatefulWidget {
 }
 
 class _HistorialPageState extends State<HistorialPage> {
-  List movimientos = [];
+  List movimientos = []; // Lista de movimientos obtenidos desde el backend
   int currentPage = 1;
   int totalPages = 1;
-  String tipo = 'movimientos';
-  String searchText = '';
-  String ordenamiento = 'Ordenar por';
+  String tipo =
+      'movimientos'; // Puede ser 'despachos', 'recepciones' o 'movimientos'
 
-  final TextEditingController _searchController = TextEditingController();
+  // Variables de filtro
+  String numeroGuia = '';
+  String rutEmpresa = '';
+  String fechaInicio = '';
+  String fechaFin = '';
+
+  // Controladores para los campos de búsqueda
+  final TextEditingController _guiaController = TextEditingController();
+  final TextEditingController _rutController = TextEditingController();
+  final TextEditingController _fechaInicioController = TextEditingController();
+  final TextEditingController _fechaFinController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    fetchHistorial();
+    fetchHistorial(); // Carga inicial
   }
 
+  // Función que hace la solicitud HTTP al backend según el tipo y filtros
   Future<void> fetchHistorial() async {
     String baseUrl;
     if (tipo == 'despachos') {
@@ -33,49 +44,57 @@ class _HistorialPageState extends State<HistorialPage> {
     } else if (tipo == 'recepciones') {
       baseUrl = 'http://192.170.6.150:5000/historial/recepciones';
     } else {
-      baseUrl =
-          'http://192.170.6.150:5000/historial'; // Esta URL debe existir en Flask
+      baseUrl = 'http://192.170.6.150:5000/historial';
     }
 
+    // Armado de parámetros de búsqueda
     final params = {
       'page': currentPage.toString(),
       'per_page': '10',
-      if (searchText.isNotEmpty) 'numero_guia': searchText,
+      if (numeroGuia.isNotEmpty) 'numero_guia': numeroGuia,
+      if (rutEmpresa.isNotEmpty) 'rut_empresa': rutEmpresa,
+      if (fechaInicio.isNotEmpty) 'fecha_inicio': fechaInicio,
+      if (fechaFin.isNotEmpty) 'fecha_fin': fechaFin,
     };
 
     final uri = Uri.parse(baseUrl).replace(queryParameters: params);
     final token = AuthService.token ?? '';
+
     AppLogger.info("Cargando historial de tipo: $tipo, página: $currentPage");
 
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    try {
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        movimientos = tipo == 'despachos'
-            ? data['despachos']
-            : tipo == 'recepciones'
-            ? data['recepciones']
-            : data['movimientos'];
-        totalPages = data['pages'];
-        currentPage = data['current_page'];
-      });
-      AppLogger.info(
-        "Historial cargado exitosamente: ${movimientos.length} movimientos encontrados.",
-      );
-    } else {
-      AppLogger.error(
-        "Error al obtener historial: ${response.statusCode} - ${response.body}",
-      );
-      setState(() {
-        movimientos = [];
-      });
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        setState(() {
+          movimientos = tipo == 'despachos'
+              ? data['despachos']
+              : tipo == 'recepciones'
+              ? data['recepciones']
+              : data['movimientos'];
+          totalPages = data['pages'];
+          currentPage = data['current_page'];
+        });
+
+        AppLogger.info("Historial cargado exitosamente.");
+      } else {
+        AppLogger.error(
+          "Error al obtener historial: ${response.statusCode} - ${response.body}",
+        );
+        setState(() => movimientos = []);
+      }
+    } catch (e) {
+      AppLogger.error("Excepción al obtener historial: $e");
+      setState(() => movimientos = []);
     }
   }
 
+  // Cambia el tipo (despacho, recepción, movimientos) y reinicia la página
   void cambiarTipo(String nuevoTipo) {
     setState(() {
       tipo = nuevoTipo;
@@ -84,6 +103,7 @@ class _HistorialPageState extends State<HistorialPage> {
     fetchHistorial();
   }
 
+  // Cambia a la siguiente página
   void siguientePagina() {
     if (currentPage < totalPages) {
       setState(() => currentPage++);
@@ -91,6 +111,7 @@ class _HistorialPageState extends State<HistorialPage> {
     }
   }
 
+  // Cambia a la página anterior
   void paginaAnterior() {
     if (currentPage > 1) {
       setState(() => currentPage--);
@@ -98,25 +119,7 @@ class _HistorialPageState extends State<HistorialPage> {
     }
   }
 
-  void ordenarMovimientos(String criterio) {
-    setState(() {
-      ordenamiento = criterio;
-      if (criterio == 'Fecha Ascendente') {
-        movimientos.sort((a, b) => a['fecha'].compareTo(b['fecha']));
-      } else if (criterio == 'Fecha Descendente') {
-        movimientos.sort((a, b) => b['fecha'].compareTo(a['fecha']));
-      } else if (criterio == 'RUT Ascendente') {
-        movimientos.sort(
-          (a, b) => a['rut_empresa'].compareTo(b['rut_empresa']),
-        );
-      } else if (criterio == 'RUT Descendente') {
-        movimientos.sort(
-          (a, b) => b['rut_empresa'].compareTo(a['rut_empresa']),
-        );
-      }
-    });
-  }
-
+  // INTERFAZ
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,75 +140,68 @@ class _HistorialPageState extends State<HistorialPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            _buildSearchAndFilters(),
+            _buildSearchFields(), // Filtros de búsqueda
             SizedBox(height: 10),
-            _buildTipoSelector(),
+            _buildTipoSelector(), // Botones de tipo de historial
             SizedBox(height: 10),
-            _buildListaMovimientos(),
-            _buildPaginacion(),
+            _buildListaMovimientos(), // Lista de resultados
+            _buildPaginacion(), // Navegación entre páginas
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSearchAndFilters() {
-    return Container(
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.grey[800],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Buscar...',
-                hintStyle: TextStyle(color: Colors.white54),
-                border: InputBorder.none,
-              ),
-            ),
+  // Construye los campos de búsqueda
+  Widget _buildSearchFields() {
+    return Column(
+      children: [
+        _buildInput(_guiaController, 'Buscar por número de guía'),
+        SizedBox(height: 8),
+        _buildInput(_rutController, 'Buscar por RUT empresa'),
+        SizedBox(height: 8),
+        _buildInput(_fechaInicioController, 'Fecha inicio (YYYY-MM-DD)'),
+        SizedBox(height: 8),
+        _buildInput(_fechaFinController, 'Fecha fin (YYYY-MM-DD)'),
+        SizedBox(height: 8),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.amber,
+            foregroundColor: Colors.black,
           ),
-          IconButton(
-            icon: Icon(Icons.search, color: Colors.white),
-            onPressed: () {
-              setState(() {
-                searchText = _searchController.text.trim();
-                currentPage = 1;
-              });
-              fetchHistorial();
-            },
-          ),
-          PopupMenuButton<String>(
-            icon: Icon(Icons.filter_alt, color: Colors.white),
-            onSelected: ordenarMovimientos,
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'Fecha Ascendente',
-                child: Text('Fecha Ascendente'),
-              ),
-              PopupMenuItem(
-                value: 'Fecha Descendente',
-                child: Text('Fecha Descendente'),
-              ),
-              PopupMenuItem(
-                value: 'RUT Ascendente',
-                child: Text('RUT Ascendente'),
-              ),
-              PopupMenuItem(
-                value: 'RUT Descendente',
-                child: Text('RUT Descendente'),
-              ),
-            ],
-          ),
-        ],
+          icon: Icon(Icons.search),
+          label: Text('Buscar'),
+          onPressed: () {
+            setState(() {
+              numeroGuia = _guiaController.text.trim();
+              rutEmpresa = _rutController.text.trim();
+              fechaInicio = _fechaInicioController.text.trim();
+              fechaFin = _fechaFinController.text.trim();
+              currentPage = 1;
+            });
+            fetchHistorial();
+          },
+        ),
+      ],
+    );
+  }
+
+  // Campo de texto reutilizable
+  Widget _buildInput(TextEditingController controller, String label) {
+    return TextField(
+      controller: controller,
+      style: TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        hintText: label,
+        hintStyle: TextStyle(color: Colors.white54),
+        filled: true,
+        fillColor: Colors.grey[800],
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 
+  // Selector de tipo de historial
   Widget _buildTipoSelector() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -219,6 +215,7 @@ class _HistorialPageState extends State<HistorialPage> {
     );
   }
 
+  // Botón de tipo
   Widget _buildTipoButton(String tipoValor, String label) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -230,6 +227,7 @@ class _HistorialPageState extends State<HistorialPage> {
     );
   }
 
+  // Lista de movimientos obtenidos del backend
   Widget _buildListaMovimientos() {
     if (movimientos.isEmpty) {
       return Expanded(
@@ -247,6 +245,7 @@ class _HistorialPageState extends State<HistorialPage> {
         itemCount: movimientos.length,
         itemBuilder: (context, index) {
           final mov = movimientos[index];
+
           return Container(
             margin: EdgeInsets.only(bottom: 10),
             padding: EdgeInsets.all(12),
@@ -257,6 +256,7 @@ class _HistorialPageState extends State<HistorialPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Información básica del movimiento
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,6 +272,7 @@ class _HistorialPageState extends State<HistorialPage> {
                     ],
                   ),
                 ),
+                // Botón para ver el detalle del movimiento
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -298,6 +299,7 @@ class _HistorialPageState extends State<HistorialPage> {
     );
   }
 
+  // Paginación: anterior y siguiente
   Widget _buildPaginacion() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,

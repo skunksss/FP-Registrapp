@@ -1,15 +1,16 @@
-import 'dart:io';
+import 'dart:io'; // Para manejar archivos locales, como las fotos.
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:http/http.dart' as http;
-import 'package:drappnew/services/auth_service.dart';
-import 'dart:convert';
-import 'package:drappnew/services/logger.dart';
+import 'package:image_picker/image_picker.dart'; // Para capturar imágenes.
+import 'package:permission_handler/permission_handler.dart'; // Para solicitar permisos de cámara y almacenamiento.
+import 'package:http/http.dart' as http; // Para enviar peticiones HTTP.
+import 'package:drappnew/services/auth_service.dart'; // Servicio personalizado que maneja el token JWT.
+import 'dart:convert'; // Para decodificar respuestas JSON.
+import 'package:drappnew/services/logger.dart'; // Sistema de logs para registrar eventos.
 
+// Página donde se toman y suben fotos para crear un despacho.
 class DespachoStep2Page extends StatefulWidget {
-  final String numeroGuia;
-  final String rutEmpresa;
+  final String numeroGuia; // Número de guía del despacho.
+  final String rutEmpresa; // RUT de la empresa asociada.
 
   const DespachoStep2Page({
     super.key,
@@ -22,17 +23,23 @@ class DespachoStep2Page extends StatefulWidget {
 }
 
 class _DespachoStep2PageState extends State<DespachoStep2Page> {
+  // Variables para almacenar temporalmente las fotos
   File? carnetImage;
   File? patenteImage;
   File? cargaImage;
 
-  final picker = ImagePicker();
+  // Controlador del campo de observación de la carga
+  final TextEditingController _observacionController = TextEditingController();
 
+  final picker = ImagePicker(); // Instancia para capturar imágenes
+
+  // Función que pide permisos y abre la cámara para tomar una imagen comprimida
   Future<File?> pickCompressedImage() async {
     final cameraStatus = await Permission.camera.request();
     final storageStatus = await Permission.storage.request();
     final mediaStatus = await Permission.photos.request();
 
+    // Si no se otorgan los permisos, se muestra advertencia y se cancela la acción
     if (!cameraStatus.isGranted ||
         (!storageStatus.isGranted && !mediaStatus.isGranted)) {
       AppLogger.warning("Permisos no concedidos para cámara o almacenamiento");
@@ -42,9 +49,10 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
       return null;
     }
 
+    // Abre la cámara para capturar imagen
     final picked = await picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 60,
+      imageQuality: 60, // Comprime la imagen
       maxWidth: 800,
       maxHeight: 800,
     );
@@ -55,6 +63,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
     return File(picked.path);
   }
 
+  // Método genérico que recibe una función callback para manejar la imagen seleccionada
   Future<void> _pickImage(Function(File) onPicked) async {
     final image = await pickCompressedImage();
     if (image != null) {
@@ -62,11 +71,13 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
     }
   }
 
+  // Crea el despacho en el backend y devuelve su ID
   Future<int?> crearDespacho() async {
     final uri = Uri.parse('http://192.170.6.150:5000/despachos/');
     final request = http.MultipartRequest('POST', uri)
       ..fields['numero_guia'] = widget.numeroGuia
       ..fields['rut_empresa'] = widget.rutEmpresa
+      ..fields['observacion'] = _observacionController.text
       ..headers['Authorization'] = 'Bearer ${AuthService.token}';
 
     try {
@@ -85,6 +96,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
     return null;
   }
 
+  // Sube una imagen a un despacho ya creado
   Future<void> subirFoto({
     required int despachoId,
     required File imagen,
@@ -111,7 +123,9 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
     }
   }
 
+  // Función que se ejecuta al presionar "Guardar y despachar"
   void _guardarYDespachar() async {
+    // Verifica que se hayan tomado todas las fotos
     if (carnetImage == null || patenteImage == null || cargaImage == null) {
       AppLogger.warning("Intento de guardar despacho sin todas las fotos");
       ScaffoldMessenger.of(
@@ -129,6 +143,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
       return;
     }
 
+    // Sube las fotos al backend
     await subirFoto(
       despachoId: despachoId,
       imagen: carnetImage!,
@@ -144,15 +159,17 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Despacho guardado exitosamente')),
     );
-
     AppLogger.info("Despacho guardado exitosamente con ID: $despachoId");
-    Navigator.pop(context);
+
+    Navigator.pop(context); // Regresa a la pantalla anterior
   }
 
+  // Widget que construye el cuadro de captura de imagen
   Widget buildFotoBox({
     required String label,
     required File? imageFile,
     required VoidCallback onPressed,
+    bool incluirObservacion = false,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -166,6 +183,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
         children: [
           Text(label, style: const TextStyle(color: Colors.white)),
           const SizedBox(height: 8),
+          // Muestra el nombre del archivo de imagen
           TextField(
             readOnly: true,
             controller: TextEditingController(
@@ -191,11 +209,32 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
               child: const Text('ABRIR CÁMARA'),
             ),
           ),
+          // Solo se muestra en la foto de carga
+          if (incluirObservacion) ...[
+            const SizedBox(height: 20),
+            const Text(
+              'Observación sobre la carga:',
+              style: TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _observacionController,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.black),
+              decoration: const InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(),
+                hintText: 'Ej: Carga mal embalada, caja rota...',
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
+  // Interfaz de usuario principal
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -216,6 +255,7 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            // Muestra la guía y el RUT
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -239,8 +279,9 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
                 ],
               ),
             ),
+            // Módulos de captura de imagen
             buildFotoBox(
-              label: 'Tomar foto cédula de indentidad:',
+              label: 'Tomar foto cédula de identidad:',
               imageFile: carnetImage,
               onPressed: () =>
                   _pickImage((file) => setState(() => carnetImage = file)),
@@ -256,8 +297,10 @@ class _DespachoStep2PageState extends State<DespachoStep2Page> {
               imageFile: cargaImage,
               onPressed: () =>
                   _pickImage((file) => setState(() => cargaImage = file)),
+              incluirObservacion: true,
             ),
             const SizedBox(height: 10),
+            // Botón final para guardar todo
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

@@ -55,15 +55,17 @@ def create_app():
     from app.routes.auth import auth_bp
     from app.routes.despachos import despachos_bp
     from app.routes.recepciones import recepciones_bp
+    from app.routes.historial import historial_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(despachos_bp, url_prefix="/despachos")
     app.register_blueprint(recepciones_bp, url_prefix="/recepciones")
+    app.register_blueprint(historial_bp)
 
-    # Nueva ruta: Servir archivos desde la carpeta /app/uploads
+    # 👉 Ruta pública para servir imágenes
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'app', 'uploads')
 
-    @app.route('/uploads/<path:filename>')
+    @app.route('/uploads/<path:filename>', endpoint='uploaded_file')
     def uploaded_file(filename):
         return send_from_directory(UPLOAD_FOLDER, filename)
 

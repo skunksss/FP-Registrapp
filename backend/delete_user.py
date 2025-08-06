@@ -6,7 +6,7 @@ from app.models import Usuario
 app = create_app()
 
 with app.app_context():
-    rut = "21001625-2"  # Cambia esto por el RUT del usuario que quieres eliminar
+    rut = "15020222-1"  # Cambia esto por el RUT del usuario que quieres eliminar
 
     usuario = Usuario.query.filter_by(rut=rut).first()
 

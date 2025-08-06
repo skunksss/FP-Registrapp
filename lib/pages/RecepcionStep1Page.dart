@@ -1,22 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:drappnew/pages/RecepcionStep2Page.dart';
 import 'package:drappnew/services/logger.dart';
 
-// --- Función de validación de RUT chileno ---
+// --- Función para validar el RUT chileno ---
 bool validarRut(String rut) {
   if (rut.isEmpty) return false;
+
+  // Eliminar puntos y guión, y convertir a mayúscula
   rut = rut.replaceAll('.', '').replaceAll('-', '').toUpperCase();
 
+  // El RUT debe tener entre 8 y 9 caracteres
   if (rut.length < 8 || rut.length > 9) return false;
 
   final cuerpo = rut.substring(0, rut.length - 1);
   final dv = rut[rut.length - 1];
 
+  // Verifica que el cuerpo del RUT sea numérico
   if (!RegExp(r'^\d+$').hasMatch(cuerpo)) return false;
 
+  // Cálculo del dígito verificador esperado
   int suma = 0;
   int multiplo = 2;
-
   for (int i = cuerpo.length - 1; i >= 0; i--) {
     suma += int.parse(cuerpo[i]) * multiplo;
     multiplo = multiplo == 7 ? 2 : multiplo + 1;
@@ -35,6 +40,47 @@ bool validarRut(String rut) {
   return dv == dvEsperado;
 }
 
+// --- Formateador de entrada para escribir el RUT con puntos y guión automáticamente ---
+class RutInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Elimina todo lo que no sea dígito o K y convierte a mayúsculas
+    String text = newValue.text
+        .replaceAll(RegExp(r'[^\dkK]'), '')
+        .toUpperCase();
+
+    if (text.isEmpty) return newValue.copyWith(text: '');
+
+    // Separa cuerpo del dígito verificador
+    String cuerpo = text.length > 1 ? text.substring(0, text.length - 1) : '';
+    String dv = text.substring(text.length - 1);
+
+    // Agrega puntos cada 3 dígitos desde atrás
+    String cuerpoConPuntos = '';
+    int contador = 0;
+    for (int i = cuerpo.length - 1; i >= 0; i--) {
+      cuerpoConPuntos = cuerpo[i] + cuerpoConPuntos;
+      contador++;
+      if (contador == 3 && i != 0) {
+        cuerpoConPuntos = '.' + cuerpoConPuntos;
+        contador = 0;
+      }
+    }
+
+    String rutFormateado = cuerpoConPuntos + '-' + dv;
+
+    // Devuelve el nuevo texto con el cursor al final
+    return TextEditingValue(
+      text: rutFormateado,
+      selection: TextSelection.collapsed(offset: rutFormateado.length),
+    );
+  }
+}
+
+// --- Pantalla Paso 1: formulario para ingresar guía y RUT de empresa ---
 class RecepcionStep1Page extends StatefulWidget {
   const RecepcionStep1Page({super.key});
 
@@ -45,9 +91,11 @@ class RecepcionStep1Page extends StatefulWidget {
 class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
   final guiaController = TextEditingController();
   final rutEmpresaController = TextEditingController();
-  bool rutValido = false;
-  bool rutDirty = false;
 
+  bool rutValido = false; // Estado de validación del RUT
+  bool rutDirty = false; // Indica si el campo de RUT fue modificado
+
+  // Se ejecuta cada vez que cambia el RUT
   void _onRutChanged(String value) {
     final rut = value.trim();
     setState(() {
@@ -56,6 +104,7 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
     });
   }
 
+  // Función que valida y navega a la siguiente pantalla
   void _continuar() {
     final guia = guiaController.text.trim();
     final rutEmpresa = rutEmpresaController.text.trim();
@@ -64,6 +113,7 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
       "Intentando continuar con guía: $guia y RUT Empresa: $rutEmpresa",
     );
 
+    // Verifica que ambos campos estén completos
     if (guia.isEmpty || rutEmpresa.isEmpty) {
       AppLogger.warning("Campos incompletos: guía o RUT Empresa vacíos");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -72,6 +122,7 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
       return;
     }
 
+    // Verifica que el RUT sea válido
     if (!rutValido) {
       AppLogger.warning("RUT Empresa inválido");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,6 +134,8 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
     AppLogger.info(
       "Navegando a RecepcionStep2Page con guía: $guia y RUT Empresa: $rutEmpresa",
     );
+
+    // Navega a RecepcionStep2Page pasando los datos
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -94,6 +147,7 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
 
   @override
   Widget build(BuildContext context) {
+    // Define el color del borde del campo RUT según su validez
     final rutColor = !rutDirty
         ? Colors.grey
         : rutValido
@@ -136,6 +190,7 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
                 ),
                 child: Column(
                   children: [
+                    // Campo para ingresar número de guía
                     TextField(
                       controller: guiaController,
                       decoration: const InputDecoration(
@@ -144,9 +199,13 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
                       ),
                     ),
                     const SizedBox(height: 20),
+
+                    // Campo para ingresar RUT empresa, con formato y validación
                     TextField(
                       controller: rutEmpresaController,
                       onChanged: _onRutChanged,
+                      inputFormatters: [RutInputFormatter()],
+                      keyboardType: TextInputType.text,
                       decoration: InputDecoration(
                         labelText: 'RUT Empresa',
                         border: OutlineInputBorder(
@@ -165,6 +224,8 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
                             : const Icon(Icons.close, color: Colors.red),
                       ),
                     ),
+
+                    // Muestra mensaje si el RUT es inválido
                     if (rutDirty && !rutValido)
                       const Padding(
                         padding: EdgeInsets.only(top: 8.0),
@@ -173,7 +234,10 @@ class _RecepcionStep1PageState extends State<RecepcionStep1Page> {
                           style: TextStyle(color: Colors.red),
                         ),
                       ),
+
                     const SizedBox(height: 30),
+
+                    // Botón para continuar
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(

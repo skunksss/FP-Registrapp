@@ -1,6 +1,7 @@
 from app import db
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.orm import validates
 
 class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -8,11 +9,22 @@ class Usuario(db.Model):
     correo = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
 
+    nombre = db.Column(db.String(100), nullable=False)
+    cargo = db.Column(db.String(100), nullable=True)
+    tipo_usuario = db.Column(db.String(20), nullable=False, default='usuario')  # 'usuario' o 'admin'
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    # ✅ Validación de tipo_usuario
+    @validates('tipo_usuario')
+    def validate_tipo_usuario(self, key, value):
+        if value not in ['admin', 'usuario']:
+            raise ValueError("tipo_usuario debe ser 'admin' o 'usuario'")
+        return value
 
 class Despacho(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -23,6 +35,7 @@ class Despacho(db.Model):
     fotos = db.relationship('FotoDespacho', backref='despacho', lazy=True)
     latitud = db.Column(db.Float) 
     longitud = db.Column(db.Float)
+    observacion = db.Column(db.Text, nullable=True)
 
 class FotoDespacho(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -39,7 +52,8 @@ class Recepcion(db.Model):
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuario.id"), nullable=False)
     fotos = db.relationship('FotoRecepcion', backref='recepcion', lazy=True)
     latitud = db.Column(db.Float)  
-    longitud = db.Column(db.Float)  
+    longitud = db.Column(db.Float) 
+    observacion = db.Column(db.Text, nullable=True)
 
 class FotoRecepcion(db.Model):
     id = db.Column(db.Integer, primary_key=True)

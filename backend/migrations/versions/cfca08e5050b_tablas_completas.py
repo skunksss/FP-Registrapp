@@ -1,8 +1,8 @@
-"""Primera migración - tablas de usuario, despacho, recepcion
+"""tablas completas
 
-Revision ID: 727535696fef
+Revision ID: cfca08e5050b
 Revises: 
-Create Date: 2025-07-09 12:49:46.770163
+Create Date: 2025-07-31 16:13:39.051991
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '727535696fef'
+revision = 'cfca08e5050b'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -21,8 +21,13 @@ def upgrade():
     op.create_table('usuario',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('rut', sa.String(length=12), nullable=False),
-    sa.Column('password_hash', sa.String(length=128), nullable=False),
+    sa.Column('correo', sa.String(length=120), nullable=False),
+    sa.Column('password_hash', sa.String(length=256), nullable=False),
+    sa.Column('nombre', sa.String(length=100), nullable=False),
+    sa.Column('cargo', sa.String(length=100), nullable=True),
+    sa.Column('tipo_usuario', sa.String(length=20), nullable=False),
     sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('correo'),
     sa.UniqueConstraint('rut')
     )
     op.create_table('despacho',

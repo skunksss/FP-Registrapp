@@ -8,6 +8,7 @@ from app.schemas import DespachoSchema
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import logging
+from werkzeug.utils import secure_filename
 
 despachos_bp = Blueprint("despachos", __name__)
 
@@ -35,17 +36,19 @@ def crear_despacho():
 
     latitud = request.form.get("latitud", type=float)
     longitud = request.form.get("longitud", type=float)
+    observacion = data.get("observacion")
 
     despacho = Despacho(
         numero_guia=data["numero_guia"],
         rut_empresa=data["rut_empresa"],
         usuario_id=usuario_id,
         latitud=latitud,
-        longitud=longitud
+        longitud=longitud,
+        observacion=observacion
     )
     db.session.add(despacho)
     db.session.commit()
-    logging.info(f"Creación de despacho {despacho.id} por usuario {usuario_id} desde IP {ip} con datos: {data}, latitud: {latitud}, longitud: {longitud}")
+    logging.info(f"Creación de despacho {despacho.id} por usuario {usuario_id} desde IP {ip} con datos: {data}, latitud: {latitud}, longitud: {longitud}, observacion: {observacion}")
     return jsonify({"id": despacho.id}), 201
 
 @despachos_bp.route("/", methods=["GET"])
@@ -63,7 +66,8 @@ def listar_despachos():
             "fecha": d.fecha,
             "usuario_id": d.usuario_id,
             "latitud": d.latitud,
-            "longitud": d.longitud
+            "longitud": d.longitud,
+            "observacion": d.observacion
         })
     logging.info(f"Listado de despachos solicitado por usuario {usuario_id} desde IP {ip}. Total: {len(result)}")
     return jsonify(result)
@@ -106,7 +110,8 @@ def historial_despachos():
         "fecha": d.fecha,
         "usuario_id": d.usuario_id,
         "latitud": d.latitud,
-        "longitud": d.longitud
+        "longitud": d.longitud,
+        "observacion": d.observacion
     } for d in despachos.items]
     logging.info(f"Historial de despachos solicitado por usuario {usuario_id} desde IP {ip}. Página: {page}, Total: {despachos.total}")
     return jsonify({
@@ -135,51 +140,66 @@ def detalle_despacho(despacho_id):
         "usuario_id": despacho.usuario_id,
         "latitud": despacho.latitud,
         "longitud": despacho.longitud,
+        "observacion": despacho.observacion,
         "fotos": fotos
     })
 
 @despachos_bp.route("/<int:despacho_id>/fotos", methods=["POST"])
 @jwt_required()
 @limiter.limit("15 per minute")
-def subir_foto_despacho(despacho_id):
+def subir_fotos_despacho(despacho_id):
     despacho = Despacho.query.get_or_404(despacho_id)
-    tipo = request.form.get("tipo")
-    archivo = request.files.get("archivo")
     usuario_id = get_jwt_identity()
     ip = request.remote_addr
-    if not archivo or not tipo:
-        logging.warning(f"Subida de foto fallida para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}: falta archivo o tipo")
-        return jsonify({"msg": "Falta archivo o tipo"}), 400
 
-    if not allowed_file(archivo.filename):
-        logging.warning(f"Subida de foto fallida para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}: tipo de archivo no permitido ({archivo.filename})")
-        return jsonify({"msg": "Tipo de archivo no permitido"}), 400
+    tipo = request.form.get("tipo")
+    archivos = request.files.getlist("archivo")
 
-    archivo.seek(0, os.SEEK_END)
-    size = archivo.tell()
-    archivo.seek(0)
-    if size > MAX_FILE_SIZE:
-        logging.warning(f"Subida de foto fallida para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}: archivo demasiado grande ({archivo.filename}, {size} bytes)")
-        return jsonify({"msg": "El archivo excede el tamaño máximo permitido (2MB)"}), 400
+    if not tipo or not archivos:
+        logging.warning(f"Falta tipo o archivos para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}")
+        return jsonify({"msg": "Falta el tipo o los archivos"}), 400
 
-    uploads_folder = os.path.join(os.path.dirname(__file__), '..', 'uploads')
-    uploads_folder = os.path.abspath(uploads_folder)
-    if not os.path.exists(uploads_folder):
-        os.makedirs(uploads_folder)
+    if tipo not in ['carnet', 'patente', 'carga']:
+        logging.warning(f"Tipo inválido '{tipo}' para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}")
+        return jsonify({"msg": "Tipo de foto inválido"}), 400
 
-    filename = f"{tipo}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{archivo.filename}"
-    ruta = os.path.join(uploads_folder, filename)
-    archivo.save(ruta)
+    uploads_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'uploads'))
+    os.makedirs(uploads_folder, exist_ok=True)
 
-    foto = FotoDespacho(
-        despacho_id=despacho.id,
-        tipo=tipo,
-        ruta_archivo=ruta
-    )
-    db.session.add(foto)
+    fotos_guardadas = []
+
+    for archivo in archivos:
+        if not allowed_file(archivo.filename):
+            logging.warning(f"Archivo no permitido para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}")
+            continue
+
+        archivo.seek(0, os.SEEK_END)
+        size = archivo.tell()
+        archivo.seek(0)
+        if size > MAX_FILE_SIZE:
+            logging.warning(f"Archivo excede tamaño en despacho {despacho_id} por usuario {usuario_id} desde IP {ip}")
+            continue
+
+        filename = secure_filename(f"{tipo}_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{archivo.filename}")
+        ruta = os.path.join(uploads_folder, filename)
+        archivo.save(ruta)
+
+        foto = FotoDespacho(
+            despacho_id=despacho.id,
+            tipo=tipo,
+            ruta_archivo=filename
+        )
+        db.session.add(foto)
+        fotos_guardadas.append({
+            "id": foto.id,
+            "tipo": tipo,
+            "ruta_archivo": filename
+        })
+
     db.session.commit()
-    logging.info(f"Subida de foto '{filename}' para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}")
-    return jsonify({"id": foto.id, "ruta_archivo": ruta}), 201
+    logging.info(f"{len(fotos_guardadas)} fotos subidas para despacho {despacho_id} por usuario {usuario_id} desde IP {ip}")
+    
+    return jsonify({"fotos": fotos_guardadas}), 201
 
 @despachos_bp.route("/<int:despacho_id>", methods=["PUT"])
 @jwt_required()
@@ -198,58 +218,7 @@ def actualizar_despacho(despacho_id):
     despacho.rut_empresa = data["rut_empresa"]
     despacho.latitud = request.form.get("latitud", type=float)
     despacho.longitud = request.form.get("longitud", type=float)
+    despacho.observacion = data.get("observacion")
     db.session.commit()
     logging.info(f"Actualización de despacho {despacho_id} por usuario {usuario_id} desde IP {ip} con nuevos datos: {data}")
     return jsonify({"msg": "Despacho actualizado"}), 200
-
-@despachos_bp.route("/<int:despacho_id>", methods=["DELETE"])
-@jwt_required()
-def eliminar_despacho(despacho_id):
-    despacho = Despacho.query.get_or_404(despacho_id)
-    usuario_id = get_jwt_identity()
-    ip = request.remote_addr
-    for foto in despacho.fotos:
-        if os.path.exists(foto.ruta_archivo):
-            os.remove(foto.ruta_archivo)
-        db.session.delete(foto)
-    db.session.delete(despacho)
-    db.session.commit()
-    logging.info(f"Eliminación de despacho {despacho_id} por usuario {usuario_id} desde IP {ip}")
-    return jsonify({"msg": "Despacho y fotos eliminados"}), 200
-
-@despachos_bp.route("/fotos/<int:foto_id>", methods=["DELETE"])
-@jwt_required()
-def eliminar_foto_despacho(foto_id):
-    foto = FotoDespacho.query.get_or_404(foto_id)
-    usuario_id = get_jwt_identity()
-    ip = request.remote_addr
-    if os.path.exists(foto.ruta_archivo):
-        os.remove(foto.ruta_archivo)
-    db.session.delete(foto)
-    db.session.commit()
-    logging.info(f"Eliminación de foto {foto_id} por usuario {usuario_id} desde IP {ip}")
-    return jsonify({"msg": "Foto eliminada"}), 200
-
-@despachos_bp.route("/fotos/<int:foto_id>/descargar", methods=["GET"])
-@jwt_required()
-def descargar_foto_despacho(foto_id):
-    foto = FotoDespacho.query.get_or_404(foto_id)
-    usuario_id = get_jwt_identity()
-    ip = request.remote_addr
-    if not os.path.exists(foto.ruta_archivo):
-        logging.warning(f"Descarga fallida de foto {foto_id} por usuario {usuario_id} desde IP {ip}: archivo no encontrado")
-        return jsonify({"msg": "Archivo no encontrado"}), 404
-    logging.info(f"Descarga de foto {foto_id} por usuario {usuario_id} desde IP {ip}")
-    return send_file(foto.ruta_archivo, as_attachment=True)
-
-@despachos_bp.route("/fotos/<int:foto_id>/ver", methods=["GET"])
-@jwt_required()
-def ver_foto_despacho(foto_id):
-    foto = FotoDespacho.query.get_or_404(foto_id)
-    usuario_id = get_jwt_identity()
-    ip = request.remote_addr
-    if not os.path.exists(foto.ruta_archivo):
-        logging.warning(f"Visualización fallida de foto {foto_id} por usuario {usuario_id} desde IP {ip}: archivo no encontrado")
-        return jsonify({"msg": "Archivo no encontrado"}), 404
-    logging.info(f"Visualización de foto {foto_id} por usuario {usuario_id} desde IP {ip}")
-    return send_file(foto.ruta_archivo)

@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:drappnew/pages/DespachoStep2Page.dart';
 import 'package:drappnew/services/logger.dart';
 
-// --- Función de validación de RUT chileno ---
+/// --- Función de validación de RUT chileno ---
+/// Verifica si el RUT tiene estructura válida y el dígito verificador correcto.
 bool validarRut(String rut) {
   if (rut.isEmpty) return false;
   rut = rut.replaceAll('.', '').replaceAll('-', '').toUpperCase();
 
-  // El largo debe ser al menos 8 (ej: 1234567-8) y máximo 9
   if (rut.length < 8 || rut.length > 9) return false;
 
   final cuerpo = rut.substring(0, rut.length - 1);
   final dv = rut[rut.length - 1];
 
-  // El cuerpo debe ser numérico
   if (!RegExp(r'^\d+$').hasMatch(cuerpo)) return false;
 
   int suma = 0;
@@ -37,6 +37,45 @@ bool validarRut(String rut) {
   return dv == dvEsperado;
 }
 
+/// --- Formateador de entrada para RUT chileno ---
+/// Aplica formato al RUT mientras se escribe (ej. 12.345.678-K).
+class RutInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    String text = newValue.text
+        .replaceAll(RegExp(r'[^\dkK]'), '')
+        .toUpperCase();
+
+    if (text.isEmpty) return newValue.copyWith(text: '');
+
+    String cuerpo = text.length > 1 ? text.substring(0, text.length - 1) : '';
+    String dv = text.substring(text.length - 1);
+
+    String cuerpoConPuntos = '';
+    int contador = 0;
+    for (int i = cuerpo.length - 1; i >= 0; i--) {
+      cuerpoConPuntos = cuerpo[i] + cuerpoConPuntos;
+      contador++;
+      if (contador == 3 && i != 0) {
+        cuerpoConPuntos = '.' + cuerpoConPuntos;
+        contador = 0;
+      }
+    }
+
+    String rutFormateado = cuerpoConPuntos + '-' + dv;
+
+    return TextEditingValue(
+      text: rutFormateado,
+      selection: TextSelection.collapsed(offset: rutFormateado.length),
+    );
+  }
+}
+
+/// Primer paso del proceso de despacho.
+/// Recoge el número de guía y el RUT de la empresa para continuar.
 class DespachoStep1Page extends StatefulWidget {
   const DespachoStep1Page({super.key});
 
@@ -48,8 +87,9 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
   final guiaController = TextEditingController();
   final rutEmpresaController = TextEditingController();
   bool rutValido = false;
-  bool rutDirty = false;
+  bool rutDirty = false; // Se activa cuando el usuario empieza a escribir RUT
 
+  /// Valida el RUT a medida que el usuario escribe
   void _onRutChanged(String value) {
     final rut = value.trim();
     setState(() {
@@ -58,6 +98,7 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
     });
   }
 
+  /// Valida los campos y navega a la siguiente pantalla si todo es correcto
   void _continuar() {
     final guia = guiaController.text.trim();
     final rutEmpresa = rutEmpresaController.text.trim();
@@ -82,6 +123,7 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
       return;
     }
 
+    // Si todo es válido, continuar al paso 2 del despacho
     AppLogger.info(
       "Navegando a DespachoStep2Page con guía: $guia y RUT Empresa: $rutEmpresa",
     );
@@ -96,6 +138,7 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
 
   @override
   Widget build(BuildContext context) {
+    // Define el color del borde del campo RUT según su validez
     final rutColor = !rutDirty
         ? Colors.grey
         : rutValido
@@ -130,6 +173,8 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
                 ),
               ),
               const SizedBox(height: 30),
+
+              // Contenedor con campos de entrada
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -138,6 +183,7 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
                 ),
                 child: Column(
                   children: [
+                    // Campo: número de guía
                     TextField(
                       controller: guiaController,
                       decoration: const InputDecoration(
@@ -146,9 +192,13 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
                       ),
                     ),
                     const SizedBox(height: 20),
+
+                    // Campo: RUT empresa con validación visual
                     TextField(
                       controller: rutEmpresaController,
                       onChanged: _onRutChanged,
+                      inputFormatters: [RutInputFormatter()],
+                      keyboardType: TextInputType.text,
                       decoration: InputDecoration(
                         labelText: 'RUT Empresa',
                         border: OutlineInputBorder(
@@ -167,6 +217,8 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
                             : const Icon(Icons.close, color: Colors.red),
                       ),
                     ),
+
+                    // Mensaje de error si el RUT es inválido
                     if (rutDirty && !rutValido)
                       const Padding(
                         padding: EdgeInsets.only(top: 8.0),
@@ -176,6 +228,8 @@ class _DespachoStep1PageState extends State<DespachoStep1Page> {
                         ),
                       ),
                     const SizedBox(height: 30),
+
+                    // Botón para continuar
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(

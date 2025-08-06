@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:http/http.dart' as http;
-import 'package:drappnew/services/auth_service.dart';
-import 'dart:convert';
-import 'package:drappnew/services/logger.dart';
+import 'package:image_picker/image_picker.dart'; // Para capturar imágenes con la cámara.
+import 'package:permission_handler/permission_handler.dart'; // Para solicitar permisos de cámara/almacenamiento.
+import 'package:http/http.dart' as http; // Para enviar solicitudes HTTP.
+import 'package:drappnew/services/auth_service.dart'; // Para obtener el token JWT.
+import 'dart:convert'; // Para decodificar JSON.
+import 'package:drappnew/services/logger.dart'; // Sistema de logs personalizados.
 
+// Página para completar la recepción: fotos + observación
 class RecepcionStep2Page extends StatefulWidget {
   final String numeroGuia;
   final String rutEmpresa;
@@ -22,26 +23,31 @@ class RecepcionStep2Page extends StatefulWidget {
 }
 
 class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
-  File? carnetImage;
-  File? patenteImage;
-  File? cargaImage;
+  // Listas para almacenar múltiples fotos por tipo
+  final List<File> carnetFotos = [];
+  final List<File> patenteFotos = [];
+  final List<File> cargaFotos = [];
 
+  final TextEditingController _observacionController = TextEditingController();
   final picker = ImagePicker();
 
+  // Abre la cámara y captura imagen comprimida
   Future<File?> pickCompressedImage() async {
+    // Solicita permisos necesarios
     final cameraStatus = await Permission.camera.request();
     final storageStatus = await Permission.storage.request();
     final mediaStatus = await Permission.photos.request();
 
+    // Si faltan permisos, se notifica al usuario
     if (!cameraStatus.isGranted ||
         (!storageStatus.isGranted && !mediaStatus.isGranted)) {
-      AppLogger.warning("Permisos no concedidos para cámara o almacenamiento");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Permisos no concedidos')));
       return null;
     }
 
+    // Captura imagen desde cámara
     final picked = await picker.pickImage(
       source: ImageSource.camera,
       imageQuality: 60,
@@ -50,23 +56,31 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
     );
 
     if (picked == null) return null;
-
-    AppLogger.info("Imagen seleccionada: ${picked.path}");
     return File(picked.path);
   }
 
-  Future<void> _pickImage(Function(File) onPicked) async {
+  // Agrega una foto a la lista si no ha superado el límite
+  Future<void> agregarFoto(List<File> lista, int maxFotos) async {
+    if (lista.length >= maxFotos) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Máximo $maxFotos fotos permitidas')),
+      );
+      return;
+    }
+
     final image = await pickCompressedImage();
     if (image != null) {
-      onPicked(image);
+      setState(() => lista.add(image));
     }
   }
 
+  // Crea la recepción en el backend y devuelve su ID
   Future<int?> crearRecepcion() async {
     final uri = Uri.parse('http://192.170.6.150:5000/recepciones/');
     final request = http.MultipartRequest('POST', uri)
       ..fields['numero_guia'] = widget.numeroGuia
       ..fields['rut_empresa'] = widget.rutEmpresa
+      ..fields['observacion'] = _observacionController.text
       ..headers['Authorization'] = 'Bearer ${AuthService.token}';
 
     try {
@@ -74,132 +88,119 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
       final responseBody = await response.stream.bytesToString();
       if (response.statusCode == 201) {
         final json = jsonDecode(responseBody);
-        AppLogger.info("Recepción creada con ID: ${json['id']}");
         return json['id'];
-      } else {
-        AppLogger.error("Error al crear recepción: $responseBody");
       }
-    } catch (e) {
-      AppLogger.error("Excepción al crear recepción: $e");
+    } catch (_) {
+      // Puedes loggear la excepción si deseas
     }
     return null;
   }
 
-  Future<void> subirFoto({
+  // Sube fotos al backend para un tipo específico (carnet, patente, carga)
+  Future<void> subirFotos({
     required int recepcionId,
-    required File imagen,
+    required List<File> fotos,
     required String tipo,
   }) async {
+    if (fotos.isEmpty) return;
+
     final uri = Uri.parse(
       'http://192.170.6.150:5000/recepciones/$recepcionId/fotos',
     );
+
     final request = http.MultipartRequest('POST', uri)
       ..headers['Authorization'] = 'Bearer ${AuthService.token}'
-      ..fields['tipo'] = tipo
-      ..files.add(await http.MultipartFile.fromPath('archivo', imagen.path));
+      ..fields['tipo'] = tipo;
+
+    // Agrega cada archivo a la petición
+    for (var f in fotos) {
+      request.files.add(await http.MultipartFile.fromPath('archivo', f.path));
+    }
 
     try {
       final response = await request.send();
-      final res = await response.stream.bytesToString();
       if (response.statusCode != 201) {
-        AppLogger.error("Error al subir foto $tipo: $res");
-      } else {
-        AppLogger.info("Foto $tipo subida exitosamente");
+        final res = await response.stream.bytesToString();
+        AppLogger.error("Error al subir $tipo: $res");
       }
     } catch (e) {
-      AppLogger.error("Excepción al subir foto $tipo: $e");
+      AppLogger.error("Excepción al subir $tipo: $e");
     }
   }
 
+  // Función principal al presionar "Guardar y recibir"
   void _guardarYRecibir() async {
-    if (carnetImage == null || patenteImage == null || cargaImage == null) {
-      AppLogger.warning("Intento de guardar recepción sin todas las fotos");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Debes tomar las 3 fotos')));
+    // Verifica que se hayan tomado todas las fotos requeridas
+    if (carnetFotos.length != 2 ||
+        patenteFotos.length != 1 ||
+        cargaFotos.length < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Debes completar las fotos requeridas')),
+      );
       return;
     }
 
-    final recepcionId = await crearRecepcion();
-    if (recepcionId == null) {
-      AppLogger.error("Error al crear recepción");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error al crear recepción')));
-      return;
-    }
+    final id = await crearRecepcion();
+    if (id == null) return;
 
-    await subirFoto(
-      recepcionId: recepcionId,
-      imagen: carnetImage!,
-      tipo: 'carnet',
-    );
-    await subirFoto(
-      recepcionId: recepcionId,
-      imagen: patenteImage!,
-      tipo: 'patente',
-    );
-    await subirFoto(
-      recepcionId: recepcionId,
-      imagen: cargaImage!,
-      tipo: 'carga',
-    );
+    await subirFotos(recepcionId: id, fotos: carnetFotos, tipo: 'carnet');
+    await subirFotos(recepcionId: id, fotos: patenteFotos, tipo: 'patente');
+    await subirFotos(recepcionId: id, fotos: cargaFotos, tipo: 'carga');
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Recepción guardada exitosamente')),
-    );
-
-    AppLogger.info("Recepción guardada exitosamente con ID: $recepcionId");
-    Navigator.pop(context);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Recepción registrada con éxito')));
+    Navigator.pop(context); // Vuelve a la pantalla anterior
   }
 
-  Widget buildFotoBox({
-    required String label,
-    required File? imageFile,
-    required VoidCallback onPressed,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[700],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white)),
-          const SizedBox(height: 8),
-          TextField(
-            readOnly: true,
-            controller: TextEditingController(
-              text: imageFile != null ? imageFile.path.split('/').last : '',
-            ),
-            decoration: const InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
+  // Componente visual para mostrar galería de fotos con opción de eliminar
+  Widget buildGaleria(String tipo, List<File> fotos, int maxFotos) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Fotos de $tipo (${fotos.length}/$maxFotos):',
+          style: TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: fotos.asMap().entries.map((entry) {
+            final index = entry.key;
+            final file = entry.value;
+            return Stack(
+              children: [
+                Image.file(file, width: 100, height: 100, fit: BoxFit.cover),
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: () => setState(() => fotos.removeAt(index)),
+                    child: Container(
+                      color: Colors.black54,
+                      child: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton(
+          onPressed: () => agregarFoto(fotos, maxFotos),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFFC107),
+            foregroundColor: Colors.black,
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFC107),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text('ABRIR CÁMARA'),
-            ),
-          ),
-        ],
-      ),
+          child: const Text("Tomar Foto"),
+        ),
+        const SizedBox(height: 20),
+      ],
     );
   }
 
+  // Interfaz visual principal
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -219,7 +220,9 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Muestra número de guía y RUT empresa
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -233,35 +236,39 @@ class _RecepcionStep2PageState extends State<RecepcionStep2Page> {
                 children: [
                   Text(
                     'Número de Guía: ${widget.numeroGuia}',
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: Colors.white),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'RUT Empresa: ${widget.rutEmpresa}',
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: Colors.white),
                   ),
                 ],
               ),
             ),
-            buildFotoBox(
-              label: 'Tomar foto cédula de indentidad:',
-              imageFile: carnetImage,
-              onPressed: () =>
-                  _pickImage((file) => setState(() => carnetImage = file)),
-            ),
-            buildFotoBox(
-              label: 'Tomar foto patente:',
-              imageFile: patenteImage,
-              onPressed: () =>
-                  _pickImage((file) => setState(() => patenteImage = file)),
-            ),
-            buildFotoBox(
-              label: 'Tomar foto carga:',
-              imageFile: cargaImage,
-              onPressed: () =>
-                  _pickImage((file) => setState(() => cargaImage = file)),
-            ),
+            // Galerías por tipo
+            buildGaleria('carnet', carnetFotos, 2),
+            buildGaleria('patente', patenteFotos, 1),
+            buildGaleria('carga', cargaFotos, 4),
             const SizedBox(height: 10),
+
+            // Observación de la carga
+            const Text('Observación:', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _observacionController,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.black),
+              decoration: const InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(),
+                hintText: 'Ej: Caja dañada, carga suelta...',
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Botón para guardar todo
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

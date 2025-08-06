@@ -50,7 +50,7 @@ def login():
         return jsonify(msg="Credenciales inválidas"), 401
 
     try:
-        token = create_access_token(identity=user.id)
+        token = create_access_token(identity=str(user.id))
     except Exception as e:
         logging.critical(f"Error al crear token para usuario {rut} desde IP {ip}: {e}")
         return jsonify(msg="Error interno"), 500
